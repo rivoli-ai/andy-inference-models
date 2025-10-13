@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  promptguard-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: deberta-promptguard-dev
+    ports:
+      - "5158:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - Logging__MaxLogSize=1000
+      - ModelConfiguration__ModelPath=/app/models/model.onnx
+      - ModelConfiguration__TokenizerPath=/app/models/tokenizer.json
+    volumes:
+      # Mount models directory from host
+      - ./models:/app/models:ro
+      # Mount source for hot reload (optional)
+      - ./src:/src:ro
+    restart: unless-stopped
+    networks:
+      - promptguard-network
+
+networks:
+  promptguard-network:
+    driver: bridge
+
+

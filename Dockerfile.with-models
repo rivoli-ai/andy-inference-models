@@ -1,0 +1,68 @@
+# Dockerfile that includes model downloading and conversion
+# Use this if you want models baked into the image
+
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy solution and project files
+COPY DebertaInferenceModel.sln .
+COPY src/DebertaInferenceModel.ML/DebertaInferenceModel.ML.csproj src/DebertaInferenceModel.ML/
+COPY src/DebertaInferenceModel.Api/DebertaInferenceModel.Api.csproj src/DebertaInferenceModel.Api/
+
+# Restore dependencies
+RUN dotnet restore
+
+# Copy all source code
+COPY src/ src/
+
+# Build the application
+WORKDIR /src/src/DebertaInferenceModel.Api
+RUN dotnet build -c Release -o /app/build
+
+# Publish stage
+FROM build AS publish
+RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+
+# Model download stage
+FROM python:3.11-slim AS model-downloader
+WORKDIR /models
+
+# Install dependencies
+RUN pip install --no-cache-dir transformers optimum onnx onnxruntime torch --index-url https://download.pytorch.org/whl/cpu
+
+# Copy conversion script
+COPY convert_model.py .
+
+# Download and convert model
+RUN mkdir -p output && \
+    python convert_model.py || echo "Model download may have issues, continuing..."
+
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+WORKDIR /app
+
+# Copy published application
+COPY --from=publish /app/publish .
+
+# Copy models from download stage
+COPY --from=model-downloader /models/src/DebertaInferenceModel.Api/models ./models/
+
+# Expose port
+EXPOSE 8080
+
+# Set environment variables
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENV ModelConfiguration__ModelPath=/app/models/model.onnx
+ENV ModelConfiguration__TokenizerPath=/app/models/tokenizer.json
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+# Run the application
+ENTRYPOINT ["dotnet", "DebertaInferenceModel.Api.dll"]
+
+
+

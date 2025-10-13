@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{6458E6EE-5F36-406E-BA65-6EC78B69D149}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DebertaInferenceModel.ML", "src\DebertaInferenceModel.ML\DebertaInferenceModel.ML.csproj", "{FB00C7FE-1BBB-409C-94AD-CFF8FBE1EFF0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DebertaInferenceModel.Api", "src\DebertaInferenceModel.Api\DebertaInferenceModel.Api.csproj", "{3E8D40D1-3BB3-4BDB-AA44-0E05AE30D2BB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FB00C7FE-1BBB-409C-94AD-CFF8FBE1EFF0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FB00C7FE-1BBB-409C-94AD-CFF8FBE1EFF0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FB00C7FE-1BBB-409C-94AD-CFF8FBE1EFF0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FB00C7FE-1BBB-409C-94AD-CFF8FBE1EFF0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3E8D40D1-3BB3-4BDB-AA44-0E05AE30D2BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3E8D40D1-3BB3-4BDB-AA44-0E05AE30D2BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3E8D40D1-3BB3-4BDB-AA44-0E05AE30D2BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3E8D40D1-3BB3-4BDB-AA44-0E05AE30D2BB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{FB00C7FE-1BBB-409C-94AD-CFF8FBE1EFF0} = {6458E6EE-5F36-406E-BA65-6EC78B69D149}
+		{3E8D40D1-3BB3-4BDB-AA44-0E05AE30D2BB} = {6458E6EE-5F36-406E-BA65-6EC78B69D149}
+	EndGlobalSection
+EndGlobal
