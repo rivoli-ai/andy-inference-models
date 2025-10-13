@@ -31,7 +31,12 @@ builder.Services.AddSingleton<PromptGuardServiceWrapper>(sp =>
         throw new InvalidOperationException("ModelConfiguration is not properly configured");
     }
 
-    return new PromptGuardServiceWrapper(config.ModelPath, config.TokenizerPath);
+    // Use TokenizerServiceUrl if provided, otherwise fall back to TokenizerPath
+    var tokenizerPathOrUrl = !string.IsNullOrWhiteSpace(config.TokenizerServiceUrl)
+        ? config.TokenizerServiceUrl
+        : config.TokenizerPath;
+
+    return new PromptGuardServiceWrapper(config.ModelPath, tokenizerPathOrUrl);
 });
 
 // Register PredictionLoggerService as singleton

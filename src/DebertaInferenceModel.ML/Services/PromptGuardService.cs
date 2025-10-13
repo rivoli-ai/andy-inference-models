@@ -13,20 +13,25 @@ public class PromptGuardService : IDisposable
     private readonly DebertaTokenizer? _tokenizer;
     private readonly string[] _labels = new[] { "SAFE", "INJECTION" };
 
-    public PromptGuardService(string modelPath, string tokenizerPath)
+    public PromptGuardService(string modelPath, string tokenizerPathOrServiceUrl)
     {
         if (!File.Exists(modelPath))
         {
             throw new FileNotFoundException($"Model file not found at: {modelPath}");
         }
 
-        if (!File.Exists(tokenizerPath))
+        // Check if tokenizerPathOrServiceUrl is a URL or file path
+        bool isUrl = tokenizerPathOrServiceUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                     tokenizerPathOrServiceUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
+        // Only check file existence if it's not a URL
+        if (!isUrl && !File.Exists(tokenizerPathOrServiceUrl))
         {
-            throw new FileNotFoundException($"Tokenizer file not found at: {tokenizerPath}");
+            throw new FileNotFoundException($"Tokenizer file not found at: {tokenizerPathOrServiceUrl}");
         }
 
-        // Initialize tokenizer
-        _tokenizer = new DebertaTokenizer(tokenizerPath);
+        // Initialize tokenizer (handles both URLs and file paths)
+        _tokenizer = new DebertaTokenizer(tokenizerPathOrServiceUrl);
 
         // Load ONNX model using ONNX Runtime directly
         _session = new InferenceSession(modelPath);

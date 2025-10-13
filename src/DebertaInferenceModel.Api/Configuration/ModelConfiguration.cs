@@ -16,5 +16,11 @@ public class ModelConfiguration
     /// Path to the tokenizer JSON file
     /// </summary>
     public string TokenizerPath { get; set; } = "models/tokenizer.json";
+
+    /// <summary>
+    /// URL of the Python tokenizer service (optional, uses TokenizerPath if not provided)
+    /// When provided, uses Python service for accurate HuggingFace tokenization
+    /// </summary>
+    public string? TokenizerServiceUrl { get; set; }
 }
 

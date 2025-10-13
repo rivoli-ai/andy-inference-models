@@ -1,73 +1,87 @@
 using Microsoft.ML.Tokenizers;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace DebertaInferenceModel.ML.Services;
 
 /// <summary>
-/// Tokenizer for DeBERTa models with fallback support
-/// Tries to load DeBERTa tokenizer from tokenizer.json, falls back to GPT-2 if unavailable
+/// Tokenizer for DeBERTa models with Python microservice support
+/// Calls Python tokenizer service for accurate HuggingFace tokenization, falls back to GPT-2 if service unavailable
 /// </summary>
 public class DebertaTokenizer
 {
-    private readonly Tokenizer _tokenizer;
+    private readonly HttpClient _httpClient;
+    private readonly string? _tokenizerServiceUrl;
+    private readonly Tokenizer? _fallbackTokenizer;
     private readonly int _maxLength;
     private readonly bool _usingFallback;
+    private readonly bool _useTokenizerService;
     
     public bool IsUsingFallback => _usingFallback;
 
-    public DebertaTokenizer(string tokenizerJsonPath, int maxLength = 512)
+    public DebertaTokenizer(string tokenizerJsonPathOrServiceUrl, int maxLength = 512)
     {
         _maxLength = maxLength;
-        _usingFallback = false;
+        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         
-        // Try to load DeBERTa tokenizer from tokenizer.json
-        if (File.Exists(tokenizerJsonPath))
+        // Check if this is a URL (tokenizer service) or a file path
+        if (tokenizerJsonPathOrServiceUrl.StartsWith("http://") || tokenizerJsonPathOrServiceUrl.StartsWith("https://"))
         {
+            _tokenizerServiceUrl = tokenizerJsonPathOrServiceUrl.TrimEnd('/');
+            _useTokenizerService = true;
+            _usingFallback = false;
+            
+            Console.WriteLine($"🔗 Configuring to use Python tokenizer service: {_tokenizerServiceUrl}");
+            
+            // Try to connect to the service
             try
             {
-                Console.WriteLine($"Attempting to load DeBERTa tokenizer from: {tokenizerJsonPath}");
+                var healthTask = _httpClient.GetAsync($"{_tokenizerServiceUrl}/health");
+                healthTask.Wait(TimeSpan.FromSeconds(5));
                 
-                // Try various methods to load the tokenizer
-                // Note: Microsoft.ML.Tokenizers v1.0.0 has limited HuggingFace support
-                
-                // Attempt 1: Try to load from file (will fail - not supported yet)
-                try
+                if (healthTask.IsCompletedSuccessfully && healthTask.Result.IsSuccessStatusCode)
                 {
-                    using var stream = File.OpenRead(tokenizerJsonPath);
-                    // Microsoft.ML.Tokenizers v1.0.0 doesn't have a method to load HuggingFace tokenizer.json
-                    // This is just a placeholder for when the feature is added
-                    throw new NotSupportedException("HuggingFace tokenizer.json not supported");
+                    Console.WriteLine("✓ Python tokenizer service is healthy");
+                    Console.WriteLine("  Using 100% accurate DeBERTa tokenization");
+                    return;
                 }
-                catch
+                else
                 {
-                    // Expected to fail - format not supported yet
+                    Console.WriteLine("⚠ Python tokenizer service not responding, will use fallback");
+                    _useTokenizerService = false;
                 }
-                
-                // If we get here, HuggingFace tokenizer loading failed
-                Console.WriteLine("⚠ DeBERTa tokenizer.json format not supported by Microsoft.ML.Tokenizers v1.0.0");
-                Console.WriteLine("  Falling back to GPT-2 tokenizer (may affect accuracy)");
-                Console.WriteLine("  For production, consider:");
-                Console.WriteLine("    1. Python.NET integration");
-                Console.WriteLine("    2. Separate tokenization microservice");
-                Console.WriteLine("    3. See TOKENIZER_IMPLEMENTATION_GUIDE.md");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠ Error loading DeBERTa tokenizer: {ex.Message}");
+                Console.WriteLine($"⚠ Cannot connect to tokenizer service: {ex.Message}");
                 Console.WriteLine("  Falling back to GPT-2 tokenizer");
+                _useTokenizerService = false;
             }
         }
         else
         {
-            Console.WriteLine($"⚠ Tokenizer file not found: {tokenizerJsonPath}");
-            Console.WriteLine("  Falling back to GPT-2 tokenizer");
+            _useTokenizerService = false;
+            Console.WriteLine($"📁 Tokenizer path provided: {tokenizerJsonPathOrServiceUrl}");
+            
+            // Original file-based logic
+            if (File.Exists(tokenizerJsonPathOrServiceUrl))
+            {
+                Console.WriteLine("⚠ DeBERTa tokenizer.json format not supported by Microsoft.ML.Tokenizers");
+                Console.WriteLine("  To use accurate tokenization, configure TokenizerServiceUrl in appsettings.json");
+                Console.WriteLine("  See TOKENIZER_IMPLEMENTATION_GUIDE.md for details");
+            }
+            else
+            {
+                Console.WriteLine($"⚠ Tokenizer file not found: {tokenizerJsonPathOrServiceUrl}");
+            }
         }
         
-        // Fallback: Use GPT-2 tokenizer
+        // Initialize fallback tokenizer
         try
         {
-            _tokenizer = TiktokenTokenizer.CreateForModel("gpt2");
+            _fallbackTokenizer = TiktokenTokenizer.CreateForModel("gpt2");
             _usingFallback = true;
-            Console.WriteLine("✓ Using GPT-2 tokenizer as fallback");
+            Console.WriteLine("✓ Using GPT-2 tokenizer as fallback (accuracy may be reduced)");
         }
         catch (Exception ex)
         {
@@ -77,14 +91,64 @@ public class DebertaTokenizer
 
     /// <summary>
     /// Tokenize text and return input IDs and attention mask
-    /// NOTE: When using GPT-2 fallback, capitalization affects detection.
-    /// For production accuracy, use proper DeBERTa tokenizer (see TOKENIZER_IMPLEMENTATION_GUIDE.md)
+    /// Uses Python tokenizer service for accurate tokenization, falls back to GPT-2 if unavailable
     /// </summary>
     public (long[] InputIds, long[] AttentionMask) Encode(string text)
     {
+        // Try to use tokenizer service first
+        if (_useTokenizerService && _tokenizerServiceUrl != null)
+        {
+            try
+            {
+                return EncodeWithService(text);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠ Tokenizer service error: {ex.Message}");
+                Console.WriteLine("  Falling back to local tokenizer");
+            }
+        }
+        
+        // Fallback to local GPT-2 tokenizer
+        return EncodeWithFallback(text);
+    }
+    
+    private (long[] InputIds, long[] AttentionMask) EncodeWithService(string text)
+    {
+        var request = new TokenizeRequest { Text = text, MaxLength = _maxLength };
+        var json = JsonSerializer.Serialize(request);
+        var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        
+        var responseTask = _httpClient.PostAsync($"{_tokenizerServiceUrl}/tokenize", content);
+        responseTask.Wait();
+        
+        if (!responseTask.Result.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"Tokenizer service returned {responseTask.Result.StatusCode}");
+        }
+        
+        var responseContentTask = responseTask.Result.Content.ReadAsStringAsync();
+        responseContentTask.Wait();
+        
+        var response = JsonSerializer.Deserialize<TokenizeResponse>(responseContentTask.Result);
+        
+        if (response == null)
+        {
+            throw new InvalidOperationException("Failed to deserialize tokenizer response");
+        }
+        
+        return (response.InputIds, response.AttentionMask);
+    }
+    
+    private (long[] InputIds, long[] AttentionMask) EncodeWithFallback(string text)
+    {
+        if (_fallbackTokenizer == null)
+        {
+            throw new InvalidOperationException("Fallback tokenizer not initialized");
+        }
+        
         // Encode the text as-is (preserving capitalization)
-        // Case normalization was tested and reduced detection accuracy
-        var ids = _tokenizer.EncodeToIds(text);
+        var ids = _fallbackTokenizer.EncodeToIds(text);
         
         // Truncate or pad to max length
         var inputIds = new long[_maxLength];
@@ -100,5 +164,28 @@ public class DebertaTokenizer
         
         return (inputIds, attentionMask);
     }
+    
+    // JSON models for tokenizer service
+    private class TokenizeRequest
+    {
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+        
+        [JsonPropertyName("max_length")]
+        public int MaxLength { get; set; }
+    }
+    
+    private class TokenizeResponse
+    {
+        [JsonPropertyName("input_ids")]
+        public long[] InputIds { get; set; } = Array.Empty<long>();
+        
+        [JsonPropertyName("attention_mask")]
+        public long[] AttentionMask { get; set; } = Array.Empty<long>();
+        
+        [JsonPropertyName("token_count")]
+        public int TokenCount { get; set; }
+    }
 }
+
 

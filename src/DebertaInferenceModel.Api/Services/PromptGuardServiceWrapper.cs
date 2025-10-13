@@ -23,13 +23,13 @@ public class PromptGuardServiceWrapper : IDisposable
         set => _forceUseModel = value; 
     }
 
-    public PromptGuardServiceWrapper(string modelPath, string tokenizerPath)
+    public PromptGuardServiceWrapper(string modelPath, string tokenizerPathOrServiceUrl)
     {
         _fallbackService = new FallbackDetectionService();
 
         try
         {
-            _mlService = new PromptGuardService(modelPath, tokenizerPath);
+            _mlService = new PromptGuardService(modelPath, tokenizerPathOrServiceUrl);
             _isUsingFallback = false;
             _modelError = null;
         }
