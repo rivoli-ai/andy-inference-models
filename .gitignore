@@ -39,9 +39,18 @@ bld/
 *.snupkg
 **/packages/*
 
-# Model files (large binary files) - ignore entire models directory
+# Model files (large binary files) - ignore all files in lowercase 'models' directories
+# But DO NOT ignore the Models/ folders (capital M) that contain C# classes
 models/
+**/models/
+**/models/*
+**/models/**/*
 *.onnx
+*.spm
+
+# Exception: Allow C# class files in Models directories (capital M only)
+!**/Models/
+!**/Models/*.cs
 
 # Python
 __pycache__/
