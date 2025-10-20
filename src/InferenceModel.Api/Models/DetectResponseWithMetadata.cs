@@ -1,4 +1,4 @@
-namespace DebertaInferenceModel.Api.Models;
+namespace InferenceModel.Api.Models;
 
 /// <summary>
 /// Extended response model with system metadata

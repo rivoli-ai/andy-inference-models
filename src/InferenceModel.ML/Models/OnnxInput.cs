@@ -1,6 +1,6 @@
 using Microsoft.ML.Data;
 
-namespace DebertaInferenceModel.ML.Models;
+namespace InferenceModel.ML.Models;
 
 /// <summary>
 /// ONNX model input tensors

@@ -1,8 +1,8 @@
-using DebertaInferenceModel.Api.Configuration;
-using DebertaInferenceModel.Api.Filters;
-using DebertaInferenceModel.Api.Models;
-using DebertaInferenceModel.Api.Services;
-using DebertaInferenceModel.ML.Services;
+using InferenceModel.Api.Configuration;
+using InferenceModel.Api.Filters;
+using InferenceModel.Api.Models;
+using InferenceModel.Api.Services;
+using InferenceModel.ML.Services;
 using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,23 +29,11 @@ This API acts as the central gateway for model execution within the AI platform.
 builder.Services.Configure<ModelConfiguration>(
     builder.Configuration.GetSection(ModelConfiguration.SectionName));
 
-// Register PromptGuardServiceWrapper as singleton (with fallback support)
-builder.Services.AddSingleton<PromptGuardServiceWrapper>(sp =>
-{
-    var config = builder.Configuration.GetSection(ModelConfiguration.SectionName).Get<ModelConfiguration>();
-    
-    if (config == null)
-    {
-        throw new InvalidOperationException("ModelConfiguration is not properly configured");
-    }
+// Register ModelRegistryService as singleton
+builder.Services.AddSingleton<ModelRegistryService>();
 
-    // Use TokenizerServiceUrl if provided, otherwise fall back to TokenizerPath
-    var tokenizerPathOrUrl = !string.IsNullOrWhiteSpace(config.TokenizerServiceUrl)
-        ? config.TokenizerServiceUrl
-        : config.TokenizerPath;
-
-    return new PromptGuardServiceWrapper(config.ModelPath, tokenizerPathOrUrl);
-});
+// Register ModelManager as singleton (manages multiple models)
+builder.Services.AddSingleton<ModelManager>();
 
 // Register PredictionLoggerService as singleton
 builder.Services.AddSingleton<PredictionLoggerService>(sp =>
@@ -53,9 +41,6 @@ builder.Services.AddSingleton<PredictionLoggerService>(sp =>
     var maxLogSize = builder.Configuration.GetValue<int>("Logging:MaxLogSize", 1000);
     return new PredictionLoggerService(maxLogSize);
 });
-
-// Register ModelRegistryService as singleton
-builder.Services.AddSingleton<ModelRegistryService>();
 
 var app = builder.Build();
 
@@ -129,10 +114,13 @@ IResult? ValidateModel(string model, ModelRegistryService modelRegistry)
 }
 
 // Helper method for health check logic
-IResult HealthCheckLogic(PromptGuardServiceWrapper promptGuard, string model)
+IResult HealthCheckLogic(ModelManager modelManager, string model)
 {
     try
     {
+        // Get the model instance
+        var promptGuard = modelManager.GetModel(model);
+        
         // Try a simple prediction to verify service is working
         var testResult = promptGuard.Predict("test");
         
@@ -184,13 +172,13 @@ IResult HealthCheckLogic(PromptGuardServiceWrapper promptGuard, string model)
 // Health check endpoint with model parameter
 app.MapGet("/api/models/{model}/health", (
     string model,
-    [FromServices] PromptGuardServiceWrapper promptGuard,
+    [FromServices] ModelManager modelManager,
     [FromServices] ModelRegistryService modelRegistry) =>
 {
     var validationResult = ValidateModel(model, modelRegistry);
     if (validationResult != null) return validationResult;
     
-    return HealthCheckLogic(promptGuard, model);
+    return HealthCheckLogic(modelManager, model);
 })
 .WithName("HealthCheck")
 .WithTags("Models")
@@ -199,10 +187,11 @@ app.MapGet("/api/models/{model}/health", (
 .WithDescription("Verifies that the API is running and the specified ML model is loaded and ready");
 
 // Helper method for detailed health check logic
-IResult DetailedHealthCheckLogic(PromptGuardServiceWrapper promptGuard, string model)
+IResult DetailedHealthCheckLogic(ModelManager modelManager, string model)
 {
     try
     {
+        var promptGuard = modelManager.GetModel(model);
         var startTime = DateTime.UtcNow;
         
         // Run a test prediction to measure response time
@@ -281,9 +270,11 @@ IResult DetailedHealthCheckLogic(PromptGuardServiceWrapper promptGuard, string m
 }
 
 // Detailed health check endpoint with model parameter
-app.MapGet("/api/models/{model}/health/detailed", (string model, [FromServices] PromptGuardServiceWrapper promptGuard) =>
+app.MapGet("/api/models/{model}/health/detailed", (
+    string model,
+    [FromServices] ModelManager modelManager) =>
 {
-    return DetailedHealthCheckLogic(promptGuard, model);
+    return DetailedHealthCheckLogic(modelManager, model);
 })
 .WithName("DetailedHealthCheck")
 .WithTags("Models")
@@ -294,7 +285,7 @@ app.MapGet("/api/models/{model}/health/detailed", (string model, [FromServices] 
 // Helper method for detection logic
 IResult DetectPromptInjectionLogic(
     DetectRequest request,
-    PromptGuardServiceWrapper promptGuard,
+    ModelManager modelManager,
     PredictionLoggerService logger,
     HttpContext httpContext,
     string model)
@@ -306,6 +297,7 @@ IResult DetectPromptInjectionLogic(
 
     try
     {
+        var promptGuard = modelManager.GetModel(model);
         var startTime = DateTime.UtcNow;
         var result = promptGuard.Predict(request.Text);
         var responseTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
@@ -353,7 +345,7 @@ IResult DetectPromptInjectionLogic(
 app.MapPost("/api/models/{model}/detect", (
     string model,
     [FromBody] DetectRequest request,
-    [FromServices] PromptGuardServiceWrapper promptGuard,
+    [FromServices] ModelManager modelManager,
     [FromServices] PredictionLoggerService logger,
     [FromServices] ModelRegistryService modelRegistry,
     HttpContext httpContext) =>
@@ -361,7 +353,7 @@ app.MapPost("/api/models/{model}/detect", (
     var validationResult = ValidateModel(model, modelRegistry);
     if (validationResult != null) return validationResult;
     
-    return DetectPromptInjectionLogic(request, promptGuard, logger, httpContext, model);
+    return DetectPromptInjectionLogic(request, modelManager, logger, httpContext, model);
 })
 .WithName("DetectPromptInjection")
 .WithTags("Detection")
@@ -372,7 +364,7 @@ app.MapPost("/api/models/{model}/detect", (
 // Helper method for batch detection logic
 IResult BatchDetectPromptInjectionLogic(
     List<DetectRequest> requests,
-    PromptGuardServiceWrapper promptGuard,
+    ModelManager modelManager,
     PredictionLoggerService logger,
     HttpContext httpContext,
     string model)
@@ -393,6 +385,7 @@ IResult BatchDetectPromptInjectionLogic(
 
     try
     {
+        var promptGuard = modelManager.GetModel(model);
         var responses = requests.Select(request =>
         {
             var startTime = DateTime.UtcNow;
@@ -440,11 +433,11 @@ IResult BatchDetectPromptInjectionLogic(
 app.MapPost("/api/models/{model}/detect/batch", (
     string model,
     [FromBody] List<DetectRequest> requests,
-    [FromServices] PromptGuardServiceWrapper promptGuard,
+    [FromServices] ModelManager modelManager,
     [FromServices] PredictionLoggerService logger,
     HttpContext httpContext) =>
 {
-    return BatchDetectPromptInjectionLogic(requests, promptGuard, logger, httpContext, model);
+    return BatchDetectPromptInjectionLogic(requests, modelManager, logger, httpContext, model);
 })
 .WithName("DetectPromptInjectionBatch")
 .WithTags("Detection")
@@ -564,27 +557,40 @@ app.MapDelete("/api/logs", ([FromServices] PredictionLoggerService logger) =>
 .WithDescription("Removes all logged predictions from memory across all models");
 
 // Helper method for getting model status
-IResult GetModelStatusLogic(PromptGuardServiceWrapper promptGuard, string model)
+IResult GetModelStatusLogic(ModelManager modelManager, string model)
 {
-    return Results.Ok(new
+    try
     {
-        model,
-        modelLoaded = promptGuard.IsModelLoaded,
-        modelEnabled = promptGuard.ForceUseModel,
-        currentlyUsingFallback = promptGuard.IsCurrentlyUsingFallback(),
-        detectionMethod = promptGuard.GetCurrentDetectionMethod(),
-        modelError = promptGuard.ModelError,
-        canToggle = promptGuard.IsModelLoaded,
-        status = promptGuard.IsModelLoaded 
-            ? (promptGuard.ForceUseModel ? "enabled" : "disabled")
-            : "unavailable"
-    });
+        var promptGuard = modelManager.GetModel(model);
+        return Results.Ok(new
+        {
+            model,
+            modelLoaded = promptGuard.IsModelLoaded,
+            modelEnabled = promptGuard.ForceUseModel,
+            currentlyUsingFallback = promptGuard.IsCurrentlyUsingFallback(),
+            detectionMethod = promptGuard.GetCurrentDetectionMethod(),
+            modelError = promptGuard.ModelError,
+            canToggle = promptGuard.IsModelLoaded,
+            status = promptGuard.IsModelLoaded 
+                ? (promptGuard.ForceUseModel ? "enabled" : "disabled")
+                : "unavailable"
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            title: "Error loading model",
+            detail: ex.Message,
+            statusCode: 500);
+    }
 }
 
 // Get model status endpoint with model parameter
-app.MapGet("/api/models/{model}/status", (string model, [FromServices] PromptGuardServiceWrapper promptGuard) =>
+app.MapGet("/api/models/{model}/status", (
+    string model,
+    [FromServices] ModelManager modelManager) =>
 {
-    return GetModelStatusLogic(promptGuard, model);
+    return GetModelStatusLogic(modelManager, model);
 })
 .WithName("GetModelStatus")
 .WithTags("Models")
@@ -593,40 +599,52 @@ app.MapGet("/api/models/{model}/status", (string model, [FromServices] PromptGua
 .WithDescription("Returns information about whether the specified ML model is loaded and enabled");
 
 // Helper method for toggling model
-IResult ToggleModelLogic(PromptGuardServiceWrapper promptGuard, bool enable, string model)
+IResult ToggleModelLogic(ModelManager modelManager, bool enable, string model)
 {
-    if (!promptGuard.IsModelLoaded)
+    try
     {
-        return Results.BadRequest(new 
-        { 
+        var promptGuard = modelManager.GetModel(model);
+        
+        if (!promptGuard.IsModelLoaded)
+        {
+            return Results.BadRequest(new 
+            { 
+                model,
+                error = "Cannot toggle model - ML model is not loaded",
+                reason = promptGuard.ModelError,
+                currentState = "fallback-only"
+            });
+        }
+
+        promptGuard.ForceUseModel = enable;
+
+        return Results.Ok(new
+        {
             model,
-            error = "Cannot toggle model - ML model is not loaded",
-            reason = promptGuard.ModelError,
-            currentState = "fallback-only"
+            success = true,
+            modelEnabled = enable,
+            detectionMethod = promptGuard.GetCurrentDetectionMethod(),
+            message = enable 
+                ? $"ML model '{model}' enabled - predictions will use this model"
+                : "ML model disabled - predictions will use keyword fallback"
         });
     }
-
-    promptGuard.ForceUseModel = enable;
-
-    return Results.Ok(new
+    catch (Exception ex)
     {
-        model,
-        success = true,
-        modelEnabled = enable,
-        detectionMethod = promptGuard.GetCurrentDetectionMethod(),
-        message = enable 
-            ? "ML model enabled - predictions will use DeBERTa model"
-            : "ML model disabled - predictions will use keyword fallback"
-    });
+        return Results.Problem(
+            title: "Error toggling model",
+            detail: ex.Message,
+            statusCode: 500);
+    }
 }
 
 // Toggle model on/off endpoint with model parameter
 app.MapPost("/api/models/{model}/toggle", (
     string model,
-    [FromServices] PromptGuardServiceWrapper promptGuard,
+    [FromServices] ModelManager modelManager,
     [FromQuery] bool enable) =>
 {
-    return ToggleModelLogic(promptGuard, enable, model);
+    return ToggleModelLogic(modelManager, enable, model);
 })
 .WithName("ToggleModel")
 .WithTags("Models")
@@ -635,32 +653,46 @@ app.MapPost("/api/models/{model}/toggle", (
 .WithDescription("Toggle between ML model and fallback detection for the specified model. Use query param: ?enable=true or ?enable=false");
 
 // Helper method for enabling model
-IResult EnableModelLogic(PromptGuardServiceWrapper promptGuard, string model)
+IResult EnableModelLogic(ModelManager modelManager, string model)
 {
-    if (!promptGuard.IsModelLoaded)
+    try
     {
-        return Results.BadRequest(new 
-        { 
+        var promptGuard = modelManager.GetModel(model);
+        
+        if (!promptGuard.IsModelLoaded)
+        {
+            return Results.BadRequest(new 
+            { 
+                model,
+                error = "Cannot enable model - ML model is not loaded",
+                reason = promptGuard.ModelError
+            });
+        }
+
+        promptGuard.ForceUseModel = true;
+        return Results.Ok(new
+        {
             model,
-            error = "Cannot enable model - ML model is not loaded",
-            reason = promptGuard.ModelError
+            success = true,
+            message = $"ML model '{model}' enabled",
+            detectionMethod = "ml-model"
         });
     }
-
-    promptGuard.ForceUseModel = true;
-    return Results.Ok(new
+    catch (Exception ex)
     {
-        model,
-        success = true,
-        message = "ML model enabled",
-        detectionMethod = "ml-model"
-    });
+        return Results.Problem(
+            title: "Error enabling model",
+            detail: ex.Message,
+            statusCode: 500);
+    }
 }
 
 // Force switch to ML model with model parameter
-app.MapPost("/api/models/{model}/enable", (string model, [FromServices] PromptGuardServiceWrapper promptGuard) =>
+app.MapPost("/api/models/{model}/enable", (
+    string model,
+    [FromServices] ModelManager modelManager) =>
 {
-    return EnableModelLogic(promptGuard, model);
+    return EnableModelLogic(modelManager, model);
 })
 .WithName("EnableModel")
 .WithTags("Models")
@@ -669,22 +701,35 @@ app.MapPost("/api/models/{model}/enable", (string model, [FromServices] PromptGu
 .WithDescription("Switch to using the specified ML model for predictions");
 
 // Helper method for disabling model
-IResult DisableModelLogic(PromptGuardServiceWrapper promptGuard, string model)
+IResult DisableModelLogic(ModelManager modelManager, string model)
 {
-    promptGuard.ForceUseModel = false;
-    return Results.Ok(new
+    try
     {
-        model,
-        success = true,
-        message = "ML model disabled - using fallback detection",
-        detectionMethod = "keyword-fallback"
-    });
+        var promptGuard = modelManager.GetModel(model);
+        promptGuard.ForceUseModel = false;
+        return Results.Ok(new
+        {
+            model,
+            success = true,
+            message = $"ML model '{model}' disabled - using fallback detection",
+            detectionMethod = "keyword-fallback"
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            title: "Error disabling model",
+            detail: ex.Message,
+            statusCode: 500);
+    }
 }
 
 // Force switch to fallback with model parameter
-app.MapPost("/api/models/{model}/disable", (string model, [FromServices] PromptGuardServiceWrapper promptGuard) =>
+app.MapPost("/api/models/{model}/disable", (
+    string model,
+    [FromServices] ModelManager modelManager) =>
 {
-    return DisableModelLogic(promptGuard, model);
+    return DisableModelLogic(modelManager, model);
 })
 .WithName("DisableModel")
 .WithTags("Models")

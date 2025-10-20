@@ -1,4 +1,4 @@
-namespace DebertaInferenceModel.Api.Configuration;
+namespace InferenceModel.Api.Configuration;
 
 /// <summary>
 /// Configuration for model and tokenizer paths

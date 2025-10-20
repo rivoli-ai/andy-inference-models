@@ -7,8 +7,8 @@ WORKDIR /src
 
 # Copy solution and project files
 COPY andy-inference-models.sln .
-COPY src/DebertaInferenceModel.ML/DebertaInferenceModel.ML.csproj src/DebertaInferenceModel.ML/
-COPY src/DebertaInferenceModel.Api/DebertaInferenceModel.Api.csproj src/DebertaInferenceModel.Api/
+COPY src/InferenceModel.ML/InferenceModel.ML.csproj src/InferenceModel.ML/
+COPY src/InferenceModel.Api/InferenceModel.Api.csproj src/InferenceModel.Api/
 
 # Restore dependencies
 RUN dotnet restore
@@ -17,7 +17,7 @@ RUN dotnet restore
 COPY src/ src/
 
 # Build the application
-WORKDIR /src/src/DebertaInferenceModel.Api
+WORKDIR /src/src/InferenceModel.Api
 RUN dotnet build -c Release -o /app/build
 
 # Publish stage
@@ -86,6 +86,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:8080/health || exit 1
 
 # Run the application
-ENTRYPOINT ["dotnet", "DebertaInferenceModel.Api.dll"]
+ENTRYPOINT ["dotnet", "InferenceModel.Api.dll"]
 
 

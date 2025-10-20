@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace DebertaInferenceModel.Api.Models;
+namespace InferenceModel.Api.Models;
 
 /// <summary>
 /// Request model for prompt injection detection

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 
-namespace DebertaInferenceModel.Api.Services;
+namespace InferenceModel.Api.Services;
 
 /// <summary>
 /// Service to manage and provide information about available models

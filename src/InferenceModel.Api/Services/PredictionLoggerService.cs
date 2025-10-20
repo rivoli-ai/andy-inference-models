@@ -1,7 +1,7 @@
-using DebertaInferenceModel.Api.Models;
+using InferenceModel.Api.Models;
 using System.Collections.Concurrent;
 
-namespace DebertaInferenceModel.Api.Services;
+namespace InferenceModel.Api.Services;
 
 /// <summary>
 /// Service for logging prediction requests and results

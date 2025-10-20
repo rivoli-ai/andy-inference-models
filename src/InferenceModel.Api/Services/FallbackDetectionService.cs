@@ -1,6 +1,6 @@
-using DebertaInferenceModel.ML.Models;
+using InferenceModel.ML.Models;
 
-namespace DebertaInferenceModel.Api.Services;
+namespace InferenceModel.Api.Services;
 
 /// <summary>
 /// Fallback detection service using simple keyword matching when ML model is unavailable

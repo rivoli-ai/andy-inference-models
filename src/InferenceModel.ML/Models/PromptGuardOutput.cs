@@ -1,4 +1,4 @@
-namespace DebertaInferenceModel.ML.Models;
+namespace InferenceModel.ML.Models;
 
 /// <summary>
 /// Output result from prompt injection detection

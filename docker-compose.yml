@@ -6,9 +6,12 @@ services:
     build:
       context: ./tokenizer-service
       dockerfile: Dockerfile
-    container_name: deberta-tokenizer-service
+    container_name: tokenizer-service
     ports:
       - "8000:8000"
+    volumes:
+      # Mount models directory for local tokenizer files
+      - ./models:/app/models:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
@@ -24,7 +27,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: deberta-promptguard
+    container_name: inference-service
     ports:
       - "5158:8080"
     environment:

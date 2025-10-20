@@ -1,8 +1,8 @@
-using DebertaInferenceModel.Api.Services;
+using InferenceModel.Api.Services;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace DebertaInferenceModel.Api.Filters;
+namespace InferenceModel.Api.Filters;
 
 /// <summary>
 /// Swagger operation filter to add examples and descriptions for model parameters

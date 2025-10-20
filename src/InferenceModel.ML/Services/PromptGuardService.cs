@@ -1,8 +1,8 @@
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
-using DebertaInferenceModel.ML.Models;
+using InferenceModel.ML.Models;
 
-namespace DebertaInferenceModel.ML.Services;
+namespace InferenceModel.ML.Services;
 
 /// <summary>
 /// Service for detecting prompt injection using DeBERTa v3 model
@@ -11,10 +11,16 @@ public class PromptGuardService : IDisposable
 {
     private readonly InferenceSession _session;
     private readonly DebertaTokenizer? _tokenizer;
-    private readonly string[] _labels = new[] { "SAFE", "INJECTION" };
+    private readonly string[] _labels;
+    private readonly string _modelId;
 
-    public PromptGuardService(string modelPath, string tokenizerPathOrServiceUrl)
+    public PromptGuardService(string modelPath, string tokenizerPathOrServiceUrl, string modelId = "deberta-v3-base-prompt-injection-v2", string[]? labels = null)
     {
+        _modelId = modelId;
+        
+        // Set labels based on model or use defaults
+        _labels = labels ?? GetDefaultLabelsForModel(modelId);
+        
         if (!File.Exists(modelPath))
         {
             throw new FileNotFoundException($"Model file not found at: {modelPath}");
@@ -31,10 +37,20 @@ public class PromptGuardService : IDisposable
         }
 
         // Initialize tokenizer (handles both URLs and file paths)
-        _tokenizer = new DebertaTokenizer(tokenizerPathOrServiceUrl);
+        _tokenizer = new DebertaTokenizer(tokenizerPathOrServiceUrl, modelId);
 
         // Load ONNX model using ONNX Runtime directly
         _session = new InferenceSession(modelPath);
+    }
+    
+    private static string[] GetDefaultLabelsForModel(string modelId)
+    {
+        return modelId switch
+        {
+            "deberta-v3-base-prompt-injection-v2" => new[] { "SAFE", "INJECTION" },
+            "graphcodebert-solidity-vulnerability" => new[] { "SAFE", "VULNERABLE" },
+            _ => new[] { "SAFE", "UNSAFE" }
+        };
     }
 
     /// <summary>

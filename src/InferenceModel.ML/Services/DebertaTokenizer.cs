@@ -2,7 +2,7 @@ using Microsoft.ML.Tokenizers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace DebertaInferenceModel.ML.Services;
+namespace InferenceModel.ML.Services;
 
 /// <summary>
 /// Tokenizer for DeBERTa models with Python microservice support
@@ -16,12 +16,14 @@ public class DebertaTokenizer
     private readonly int _maxLength;
     private readonly bool _usingFallback;
     private readonly bool _useTokenizerService;
+    private readonly string _modelId;
     
     public bool IsUsingFallback => _usingFallback;
 
-    public DebertaTokenizer(string tokenizerJsonPathOrServiceUrl, int maxLength = 512)
+    public DebertaTokenizer(string tokenizerJsonPathOrServiceUrl, string modelId = "deberta-v3-base-prompt-injection-v2", int maxLength = 512)
     {
         _maxLength = maxLength;
+        _modelId = modelId;
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         
         // Check if this is a URL (tokenizer service) or a file path
@@ -115,7 +117,12 @@ public class DebertaTokenizer
     
     private (long[] InputIds, long[] AttentionMask) EncodeWithService(string text)
     {
-        var request = new TokenizeRequest { Text = text, MaxLength = _maxLength };
+        var request = new TokenizeRequest 
+        { 
+            Text = text, 
+            MaxLength = _maxLength,
+            Model = _modelId
+        };
         var json = JsonSerializer.Serialize(request);
         var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
         
@@ -173,6 +180,9 @@ public class DebertaTokenizer
         
         [JsonPropertyName("max_length")]
         public int MaxLength { get; set; }
+        
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = string.Empty;
     }
     
     private class TokenizeResponse

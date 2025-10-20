@@ -1,7 +1,7 @@
-using DebertaInferenceModel.ML.Models;
-using DebertaInferenceModel.ML.Services;
+using InferenceModel.ML.Models;
+using InferenceModel.ML.Services;
 
-namespace DebertaInferenceModel.Api.Services;
+namespace InferenceModel.Api.Services;
 
 /// <summary>
 /// Wrapper service that handles model failures gracefully with fallback detection
@@ -23,13 +23,13 @@ public class PromptGuardServiceWrapper : IDisposable
         set => _forceUseModel = value; 
     }
 
-    public PromptGuardServiceWrapper(string modelPath, string tokenizerPathOrServiceUrl)
+    public PromptGuardServiceWrapper(string modelPath, string tokenizerPathOrServiceUrl, string modelId = "deberta-v3-base-prompt-injection-v2")
     {
         _fallbackService = new FallbackDetectionService();
 
         try
         {
-            _mlService = new PromptGuardService(modelPath, tokenizerPathOrServiceUrl);
+            _mlService = new PromptGuardService(modelPath, tokenizerPathOrServiceUrl, modelId);
             _isUsingFallback = false;
             _modelError = null;
         }
@@ -40,7 +40,7 @@ public class PromptGuardServiceWrapper : IDisposable
             _modelError = ex.Message;
             
             // Log the error (in production, use ILogger)
-            Console.WriteLine($"WARNING: Failed to load ML model. Using fallback detection. Error: {ex.Message}");
+            Console.WriteLine($"WARNING: Failed to load ML model '{modelId}'. Using fallback detection. Error: {ex.Message}");
         }
     }
 
