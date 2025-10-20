@@ -36,17 +36,17 @@ RUN pip install --no-cache-dir transformers "optimum[onnxruntime]" onnx
 
 # Copy conversion script
 WORKDIR /workspace
-COPY convert_model.py .
+COPY scripts/convert_model.py .
 
 # Download and convert model (only if DOWNLOAD_MODELS=true)
-RUN mkdir -p /models && \
+RUN mkdir -p /models/deberta-v3-base-prompt-injection-v2 && \
     if [ "$DOWNLOAD_MODELS" = "true" ]; then \
         echo "Downloading and converting model..."; \
         python convert_model.py; \
         if [ -d "src/DebertaPromptGuard.Api/models" ]; then \
-            mv src/DebertaPromptGuard.Api/models/* /models/ 2>/dev/null || true; \
-            echo "Models moved to /models/"; \
-            ls -lh /models/; \
+            mv src/DebertaPromptGuard.Api/models/* /models/deberta-v3-base-prompt-injection-v2/ 2>/dev/null || true; \
+            echo "Models moved to /models/deberta-v3-base-prompt-injection-v2/"; \
+            ls -lh /models/deberta-v3-base-prompt-injection-v2/; \
         else \
             echo "Model download failed, will use fallback"; \
         fi; \
@@ -66,8 +66,8 @@ RUN apt-get update && \
 # Copy published application
 COPY --from=publish /app/publish .
 
-# Create models directory
-RUN mkdir -p models
+# Create models directory structure
+RUN mkdir -p models/deberta-v3-base-prompt-injection-v2
 
 # Copy models from download stage (may be empty if download was skipped or failed)
 COPY --from=model-downloader /models/ ./models/
@@ -78,8 +78,8 @@ EXPOSE 8080
 # Set environment variables
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
-ENV ModelConfiguration__ModelPath=/app/models/model.onnx
-ENV ModelConfiguration__TokenizerPath=/app/models/tokenizer.json
+ENV ModelConfiguration__ModelPath=/app/models/deberta-v3-base-prompt-injection-v2/model.onnx
+ENV ModelConfiguration__TokenizerPath=/app/models/deberta-v3-base-prompt-injection-v2/tokenizer.json
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

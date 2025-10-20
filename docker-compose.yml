@@ -31,8 +31,8 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - Logging__MaxLogSize=1000
-      - ModelConfiguration__ModelPath=/app/models/model.onnx
-      - ModelConfiguration__TokenizerPath=/app/models/tokenizer.json
+      - ModelConfiguration__ModelPath=/app/models/deberta-v3-base-prompt-injection-v2/model.onnx
+      - ModelConfiguration__TokenizerPath=/app/models/deberta-v3-base-prompt-injection-v2/tokenizer.json
       - ModelConfiguration__TokenizerServiceUrl=http://tokenizer-service:8000
     volumes:
       # Mount models directory from host (if models are too large for image)

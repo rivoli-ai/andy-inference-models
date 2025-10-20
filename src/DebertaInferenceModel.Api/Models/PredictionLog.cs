@@ -64,5 +64,10 @@ public class PredictionLog
     /// Whether the model was available at the time of prediction
     /// </summary>
     public bool ModelAvailable { get; set; } = true;
+
+    /// <summary>
+    /// Model identifier used for detection
+    /// </summary>
+    public string? Model { get; set; }
 }
 

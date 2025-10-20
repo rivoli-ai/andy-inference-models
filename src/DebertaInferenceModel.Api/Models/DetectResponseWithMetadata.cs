@@ -14,6 +14,11 @@ public class DetectResponseWithMetadata : DetectResponse
     /// Detection method used
     /// </summary>
     public string DetectionMethod { get; set; } = "ml-model";
+
+    /// <summary>
+    /// Model identifier used for detection
+    /// </summary>
+    public string? Model { get; set; }
 }
 
 

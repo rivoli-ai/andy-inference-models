@@ -1,6 +1,6 @@
 """
-DeBERTa Tokenizer Microservice
-FastAPI service that provides accurate HuggingFace tokenization for DeBERTa models
+Tokenizer Microservice
+FastAPI service that provides accurate HuggingFace tokenization for AI models
 """
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -17,8 +17,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="DeBERTa Tokenizer Service",
-    description="Tokenization service for DeBERTa prompt injection detection model",
+    title="Tokenizer API",
+    description="""The Tokenizer API is responsible for text and code preprocessing operations.
+It converts raw input (natural language or source code) into tokenized representations compatible with AI models, and can also perform the reverse process to reconstruct text from tokens.
+This service ensures consistency in how inputs are prepared across different models, handling encoding, decoding, normalization, and vocabulary lookups.""",
     version="1.0.0"
 )
 
@@ -110,19 +112,6 @@ async def health():
         tokenizer_model="protectai/deberta-v3-base-prompt-injection-v2",
         version="1.0.0"
     )
-
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "service": "DeBERTa Tokenizer",
-        "status": "running",
-        "endpoints": {
-            "tokenize": "/tokenize (POST)",
-            "health": "/health (GET)",
-            "docs": "/docs (GET)"
-        }
-    }
 
 if __name__ == "__main__":
     uvicorn.run(
