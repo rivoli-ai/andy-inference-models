@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Python tokenizer service for accurate HuggingFace tokenization
   tokenizer-service:
@@ -10,8 +8,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Mount models directory for local tokenizer files
-      - ./models:/app/models:ro
+      # Mount config directory so tokenizer can read models.json
+      - ./config:/app/config:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
@@ -27,6 +25,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Use local models - no need to download during build (fast!)
+        - DOWNLOAD_MODELS=false
     container_name: inference-service
     ports:
       - "5158:8080"
@@ -34,12 +35,13 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - Logging__MaxLogSize=1000
-      - ModelConfiguration__ModelPath=/app/models/deberta-v3-base-prompt-injection-v2/model.onnx
-      - ModelConfiguration__TokenizerPath=/app/models/deberta-v3-base-prompt-injection-v2/tokenizer.json
-      - ModelConfiguration__TokenizerServiceUrl=http://tokenizer-service:8000
+      - ModelsConfigPath=/app/config/models.json
+      - TokenizerServiceUrl=http://tokenizer-service:8000
     volumes:
-      # Mount models directory from host (if models are too large for image)
+      # Mount local models directory (already downloaded)
       - ./models:/app/models:ro
+      # Mount config for easy updates
+      - ./config:/app/config:ro
     restart: unless-stopped
     depends_on:
       tokenizer-service:

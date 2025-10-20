@@ -9,8 +9,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application
 COPY app.py .
 
-# Pre-download the tokenizer (optional but recommended for faster startup)
-RUN python -c "from transformers import AutoTokenizer; AutoTokenizer.from_pretrained('protectai/deberta-v3-base-prompt-injection-v2')"
+# Create config directory (will be populated via volume mount or build context)
+RUN mkdir -p /app/config
+
+# Note: config/models.json will be provided by:
+# - Volume mount in docker-compose.yml (for development)
+# - Or copied during build if config is in the build context
+# The app.py will load models configuration dynamically at startup
 
 # Expose port
 EXPOSE 8000

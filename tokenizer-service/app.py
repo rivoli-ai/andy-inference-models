@@ -34,18 +34,79 @@ class HealthResponse(BaseModel):
     available_models: List[str]
     version: str
 
-# Supported models configuration
-# Maps model_id to (huggingface_path, local_path)
-SUPPORTED_MODELS = {
-    "deberta-v3-base-prompt-injection-v2": {
-        "hf_path": "protectai/deberta-v3-base-prompt-injection-v2",
-        "local_path": "/app/models/deberta-v3-base-prompt-injection-v2"
-    },
-    "graphcodebert-solidity-vulnerability": {
-        "hf_path": "angusleung100/GraphCodeBERT-Base-Solidity-Vulnerability",
-        "local_path": "/app/models/graphcodebert-solidity-vulnerability"
-    }
-}
+# Load models configuration from config/models.json
+def load_models_config():
+    """Load models configuration from config/models.json file."""
+    import json
+    import os
+    from pathlib import Path
+    
+    # Try multiple possible config locations
+    possible_paths = [
+        "/app/config/models.json",           # Docker container path
+        "../config/models.json",              # Relative to tokenizer-service
+        "config/models.json",                 # From project root
+        Path(__file__).parent.parent / "config" / "models.json"  # Computed relative path
+    ]
+    
+    config_path = None
+    for path in possible_paths:
+        full_path = Path(path).resolve() if isinstance(path, str) else path
+        if full_path.exists():
+            config_path = full_path
+            logger.info(f"Found configuration at: {config_path}")
+            break
+    
+    if not config_path:
+        logger.warning("config/models.json not found, using default hardcoded models")
+        # Fallback to hardcoded config
+        return {
+            "models": [
+                {
+                    "id": "deberta-prompt-injection",
+                    "name": "DeBERTa Prompt Injection",
+                    "huggingface_model": "protectai/deberta-v3-base-prompt-injection-v2",
+                    "output_dir": "deberta-v3-base-prompt-injection-v2"
+                }
+            ],
+            "config": {"models_base_dir": "/app/models"}
+        }
+    
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        logger.info(f"Loaded {len(config.get('models', []))} models from configuration")
+        return config
+    except Exception as e:
+        logger.error(f"Error loading config/models.json: {e}")
+        raise
+
+def build_supported_models():
+    """Build SUPPORTED_MODELS dictionary from config/models.json."""
+    config = load_models_config()
+    models_base_dir = config.get("config", {}).get("models_base_dir", "/app/models")
+    
+    supported = {}
+    for model in config.get("models", []):
+        model_id = model.get("output_dir")  # Use output_dir as the ID
+        hf_model = model.get("huggingface_model")
+        output_dir = model.get("output_dir")
+        
+        if not model_id or not hf_model or not output_dir:
+            logger.warning(f"Skipping incomplete model config: {model}")
+            continue
+        
+        supported[model_id] = {
+            "hf_path": hf_model,
+            "local_path": f"{models_base_dir}/{output_dir}",
+            "name": model.get("name", model_id),
+            "description": model.get("description", "")
+        }
+    
+    return supported
+
+# Supported models configuration - loaded from config/models.json
+SUPPORTED_MODELS = build_supported_models()
 
 # Global tokenizers (loaded once at startup)
 tokenizers: Dict[str, AutoTokenizer] = {}

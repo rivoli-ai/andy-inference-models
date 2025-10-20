@@ -1,10 +1,11 @@
-version: '3.8'
-
 services:
   promptguard-api:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Download models during build if they don't exist locally
+        - DOWNLOAD_MODELS=true
     container_name: inference-service-dev
     ports:
       - "5158:8080"
@@ -12,13 +13,14 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - Logging__MaxLogSize=1000
-      - ModelConfiguration__ModelPath=/app/models/deberta-v3-base-prompt-injection-v2/model.onnx
-      - ModelConfiguration__TokenizerPath=/app/models/deberta-v3-base-prompt-injection-v2/tokenizer.json
-    volumes:
-      # Mount models directory from host
-      - ./models:/app/models:ro
-      # Mount source for hot reload (optional)
-      - ./src:/src:ro
+      - ModelsConfigPath=/app/config/models.json
+      - TokenizerServiceUrl=http://localhost:8000
+    # Models are baked into image, no volume mounts needed
+    # For local development with live config changes, you can mount:
+    # volumes:
+    #   - ./models:/app/models:ro
+    #   - ./config:/app/config:ro
+    #   - ./src:/src:ro
     restart: unless-stopped
     networks:
       - promptguard-network

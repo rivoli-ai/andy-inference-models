@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+using InferenceModel.Api.Configuration;
 
 namespace InferenceModel.Api.Services;
 
@@ -8,22 +8,46 @@ namespace InferenceModel.Api.Services;
 public class ModelRegistryService
 {
     private readonly List<ModelInfo> _models;
+    private readonly ModelsConfigurationLoader _configLoader;
 
     public ModelRegistryService(IConfiguration configuration)
     {
         _models = new List<ModelInfo>();
         
-        // Load models from configuration
-        var modelsSection = configuration.GetSection("AvailableModels");
-        var configuredModels = modelsSection.Get<List<ModelInfo>>();
+        // Get config path from appsettings (or use default)
+        var configPath = configuration.GetValue<string>("ModelsConfigPath");
+        _configLoader = new ModelsConfigurationLoader(configPath);
         
-        if (configuredModels != null && configuredModels.Any())
+        try
         {
-            _models.AddRange(configuredModels);
+            // Load models from config/models.json
+            var modelsConfig = _configLoader.Load();
+            
+            foreach (var modelDef in modelsConfig.Models)
+            {
+                _models.Add(new ModelInfo
+                {
+                    Id = modelDef.OutputDir, // Use output_dir as ID for consistency
+                    Name = modelDef.Name,
+                    Description = modelDef.Description ?? $"{modelDef.Name} model",
+                    Version = "v1",
+                    Labels = modelDef.GetLabels().ToArray(),
+                    MaxSequenceLength = modelDef.MaxLength ?? 512,
+                    Architecture = modelDef.Id,
+                    Status = "available",
+                    ModelFolder = modelDef.GetModelFolder(),
+                    ModelPath = modelDef.GetModelPath(),
+                    TokenizerPath = modelDef.GetTokenizerPath()
+                });
+            }
         }
-        else
+        catch (Exception ex)
         {
-            // Default model if none configured
+            // Log error and fall back to default model
+            Console.WriteLine($"Warning: Could not load models from config/models.json: {ex.Message}");
+            Console.WriteLine("Using default model configuration");
+            
+            // Default model if config fails to load
             _models.Add(new ModelInfo
             {
                 Id = "deberta-v3-base-prompt-injection-v2",
@@ -32,8 +56,9 @@ public class ModelRegistryService
                 Version = "v2",
                 Labels = new[] { "SAFE", "INJECTION" },
                 MaxSequenceLength = 512,
-                Architecture = "deberta-v3-base",
-                Status = "available"
+                Architecture = "deberta-prompt-injection",
+                Status = "available",
+                ModelFolder = "models/deberta-v3-base-prompt-injection-v2"
             });
         }
     }
