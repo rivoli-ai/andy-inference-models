@@ -1,9 +1,9 @@
 namespace InferenceModel.Api.Models;
 
 /// <summary>
-/// Response model for prompt injection detection
+/// Response model for prompt injection prediction
 /// </summary>
-public class DetectResponse
+public class PredictResponse
 {
     /// <summary>
     /// The predicted label (SAFE or INJECTION)
@@ -30,6 +30,4 @@ public class DetectResponse
     /// </summary>
     public string Text { get; set; } = string.Empty;
 }
-
-
 

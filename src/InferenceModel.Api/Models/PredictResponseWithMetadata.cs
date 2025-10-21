@@ -3,23 +3,21 @@ namespace InferenceModel.Api.Models;
 /// <summary>
 /// Extended response model with system metadata
 /// </summary>
-public class DetectResponseWithMetadata : DetectResponse
+public class PredictResponseWithMetadata : PredictResponse
 {
     /// <summary>
-    /// Whether fallback detection was used
+    /// Whether fallback prediction was used
     /// </summary>
     public bool UsingFallback { get; set; }
 
     /// <summary>
-    /// Detection method used
+    /// Prediction method used
     /// </summary>
-    public string DetectionMethod { get; set; } = "ml-model";
+    public string PredictionMethod { get; set; } = "ml-model";
 
     /// <summary>
-    /// Model identifier used for detection
+    /// Model identifier used for prediction
     /// </summary>
     public string? Model { get; set; }
 }
-
-
 

@@ -5,10 +5,11 @@ using System.Text.Json.Serialization;
 namespace InferenceModel.ML.Services;
 
 /// <summary>
-/// Tokenizer for DeBERTa models with Python microservice support
+/// Tokenizer for ML models with Python microservice support
 /// Calls Python tokenizer service for accurate HuggingFace tokenization, falls back to GPT-2 if service unavailable
+/// Supports multiple models: DeBERTa, GraphCodeBERT, etc.
 /// </summary>
-public class DebertaTokenizer
+public class ModelTokenizer
 {
     private readonly HttpClient _httpClient;
     private readonly string? _tokenizerServiceUrl;
@@ -20,7 +21,7 @@ public class DebertaTokenizer
     
     public bool IsUsingFallback => _usingFallback;
 
-    public DebertaTokenizer(string tokenizerJsonPathOrServiceUrl, string modelId = "deberta-v3-base-prompt-injection-v2", int maxLength = 512)
+    public ModelTokenizer(string tokenizerJsonPathOrServiceUrl, string modelId = "deberta-v3-base-prompt-injection-v2", int maxLength = 512)
     {
         _maxLength = maxLength;
         _modelId = modelId;
@@ -44,7 +45,7 @@ public class DebertaTokenizer
                 if (healthTask.IsCompletedSuccessfully && healthTask.Result.IsSuccessStatusCode)
                 {
                     Console.WriteLine("✓ Python tokenizer service is healthy");
-                    Console.WriteLine("  Using 100% accurate DeBERTa tokenization");
+                    Console.WriteLine($"  Using 100% accurate HuggingFace tokenization for: {_modelId}");
                     return;
                 }
                 else

@@ -10,7 +10,7 @@ namespace InferenceModel.ML.Services;
 public class PromptGuardService : IDisposable
 {
     private readonly InferenceSession _session;
-    private readonly DebertaTokenizer? _tokenizer;
+    private readonly ModelTokenizer? _tokenizer;
     private readonly string[] _labels;
     private readonly string _modelId;
 
@@ -18,8 +18,8 @@ public class PromptGuardService : IDisposable
     {
         _modelId = modelId;
         
-        // Set labels based on model or use defaults
-        _labels = labels ?? GetDefaultLabelsForModel(modelId);
+        // Use provided labels or fallback to default
+        _labels = labels ?? new[] { "SAFE", "UNSAFE" };
         
         if (!File.Exists(modelPath))
         {
@@ -37,20 +37,10 @@ public class PromptGuardService : IDisposable
         }
 
         // Initialize tokenizer (handles both URLs and file paths)
-        _tokenizer = new DebertaTokenizer(tokenizerPathOrServiceUrl, modelId);
+        _tokenizer = new ModelTokenizer(tokenizerPathOrServiceUrl, modelId);
 
         // Load ONNX model using ONNX Runtime directly
         _session = new InferenceSession(modelPath);
-    }
-    
-    private static string[] GetDefaultLabelsForModel(string modelId)
-    {
-        return modelId switch
-        {
-            "deberta-v3-base-prompt-injection-v2" => new[] { "SAFE", "INJECTION" },
-            "graphcodebert-solidity-vulnerability" => new[] { "SAFE", "VULNERABLE" },
-            _ => new[] { "SAFE", "UNSAFE" }
-        };
     }
 
     /// <summary>

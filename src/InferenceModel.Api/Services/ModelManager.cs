@@ -59,7 +59,10 @@ public class ModelManager : IDisposable
             ? tokenizerServiceUrl
             : tokenizerPath;
 
-        return new PromptGuardServiceWrapper(modelPath, tokenizerPathOrUrl, modelId);
+        // Get labels from model info (configured in models.json)
+        var labels = modelInfo.Labels;
+
+        return new PromptGuardServiceWrapper(modelPath, tokenizerPathOrUrl, modelId, labels);
     }
 
     /// <summary>

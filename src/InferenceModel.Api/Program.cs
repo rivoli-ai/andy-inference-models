@@ -57,6 +57,22 @@ app.UseSwaggerUI(c =>
 app.UseHttpsRedirection();
 
 
+// Basic health check endpoint (no model required)
+app.MapGet("/health", () =>
+{
+    return Results.Ok(new 
+    { 
+        status = "healthy",
+        timestamp = DateTime.UtcNow,
+        message = "API is running"
+    });
+})
+.WithName("BasicHealth")
+.WithTags("Health")
+.WithOpenApi()
+.WithSummary("Basic health check")
+.WithDescription("Simple health check endpoint that returns 200 OK if the API is running. Does not check model status.");
+
 // Get available models endpoint
 app.MapGet("/api/models", ([FromServices] ModelRegistryService modelRegistry) =>
 {
@@ -282,9 +298,9 @@ app.MapGet("/api/models/{model}/health/detailed", (
 .WithSummary("Detailed health check with performance metrics")
 .WithDescription("Provides detailed health information including model performance and test prediction for the specified model");
 
-// Helper method for detection logic
-IResult DetectPromptInjectionLogic(
-    DetectRequest request,
+// Helper method for prediction logic
+IResult PredictLogic(
+    PredictRequest request,
     ModelManager modelManager,
     PredictionLoggerService logger,
     HttpContext httpContext,
@@ -302,7 +318,7 @@ IResult DetectPromptInjectionLogic(
         var result = promptGuard.Predict(request.Text);
         var responseTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
         
-        var response = new DetectResponseWithMetadata
+        var response = new PredictResponseWithMetadata
         {
             Label = result.Label,
             Score = result.Score,
@@ -310,7 +326,7 @@ IResult DetectPromptInjectionLogic(
             IsSafe = result.Label == "SAFE",
             Text = request.Text,
             UsingFallback = promptGuard.IsUsingFallback,
-            DetectionMethod = promptGuard.IsUsingFallback ? "keyword-fallback" : "ml-model",
+            PredictionMethod = promptGuard.IsUsingFallback ? "keyword-fallback" : "ml-model",
             Model = model
         };
 
@@ -341,10 +357,10 @@ IResult DetectPromptInjectionLogic(
     }
 }
 
-// Detect prompt injection endpoint with model parameter
-app.MapPost("/api/models/{model}/detect", (
+// Predict endpoint - Single text prediction with model specified in route
+app.MapPost("/api/models/{model}/predict", (
     string model,
-    [FromBody] DetectRequest request,
+    [FromBody] PredictRequest request,
     [FromServices] ModelManager modelManager,
     [FromServices] PredictionLoggerService logger,
     [FromServices] ModelRegistryService modelRegistry,
@@ -353,21 +369,22 @@ app.MapPost("/api/models/{model}/detect", (
     var validationResult = ValidateModel(model, modelRegistry);
     if (validationResult != null) return validationResult;
     
-    return DetectPromptInjectionLogic(request, modelManager, logger, httpContext, model);
+    // Note: request.Model is ignored here - we use the model from the route parameter
+    return PredictLogic(request, modelManager, logger, httpContext, model);
 })
-.WithName("DetectPromptInjection")
-.WithTags("Detection")
+.WithName("Predict")
+.WithTags("Prediction")
 .WithOpenApi()
-.WithSummary("Detect prompt injection in text")
-.WithDescription("Analyzes the provided text using the specified model and determines if it contains a prompt injection attack. Requires 'text' in request body and 'model' in route parameter.");
+.WithSummary("Predict using specified model")
+.WithDescription("Analyzes the provided text using the specified model. Request body: { \"text\": \"your text here\" }. The 'model' field in request body is ignored - model is taken from the route parameter.");
 
-// Helper method for batch detection logic
-IResult BatchDetectPromptInjectionLogic(
-    List<DetectRequest> requests,
+// Helper method for batch prediction logic
+IResult BatchPredictLogic(
+    List<PredictRequest> requests,
     ModelManager modelManager,
     PredictionLoggerService logger,
-    HttpContext httpContext,
-    string model)
+    ModelRegistryService modelRegistry,
+    HttpContext httpContext)
 {
     if (requests == null || requests.Count == 0)
     {
@@ -381,41 +398,76 @@ IResult BatchDetectPromptInjectionLogic(
         {
             return Results.BadRequest(new { error = $"Text is required for request at index {i}" });
         }
+        
+        if (string.IsNullOrWhiteSpace(requests[i].Model))
+        {
+            return Results.BadRequest(new { error = $"Model is required for request at index {i}" });
+        }
+        
+        if (!modelRegistry.ModelExists(requests[i].Model!))
+        {
+            return Results.BadRequest(new 
+            { 
+                error = $"Model '{requests[i].Model}' not found for request at index {i}",
+                availableModels = modelRegistry.GetModelIds()
+            });
+        }
     }
 
     try
     {
-        var promptGuard = modelManager.GetModel(model);
-        var responses = requests.Select(request =>
+        var responses = requests.Select((request, index) =>
         {
-            var startTime = DateTime.UtcNow;
-            var result = promptGuard.Predict(request.Text);
-            var responseTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
-            
-            // Log each prediction
-            logger.LogPrediction(new PredictionLog
+            try
             {
-                Text = request.Text,
-                Label = result.Label,
-                Score = result.Score,
-                IsSafe = result.Label == "SAFE",
-                AllScores = result.AllScores,
-                ResponseTimeMs = responseTime,
-                IpAddress = httpContext.Connection.RemoteIpAddress?.ToString(),
-                UsedFallback = promptGuard.IsCurrentlyUsingFallback(),
-                DetectionMethod = promptGuard.GetCurrentDetectionMethod(),
-                ModelAvailable = promptGuard.IsModelLoaded,
-                Model = model
-            });
-            
-            return new DetectResponse
+                var promptGuard = modelManager.GetModel(request.Model!);
+                var startTime = DateTime.UtcNow;
+                var result = promptGuard.Predict(request.Text);
+                var responseTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
+                
+                // Log each prediction
+                logger.LogPrediction(new PredictionLog
+                {
+                    Text = request.Text,
+                    Label = result.Label,
+                    Score = result.Score,
+                    IsSafe = result.Label == "SAFE",
+                    AllScores = result.AllScores,
+                    ResponseTimeMs = responseTime,
+                    IpAddress = httpContext.Connection.RemoteIpAddress?.ToString(),
+                    UsedFallback = promptGuard.IsCurrentlyUsingFallback(),
+                    DetectionMethod = promptGuard.GetCurrentDetectionMethod(),
+                    ModelAvailable = promptGuard.IsModelLoaded,
+                    Model = request.Model
+                });
+                
+                return new PredictResponseWithMetadata
+                {
+                    Label = result.Label,
+                    Score = result.Score,
+                    Scores = result.AllScores,
+                    IsSafe = result.Label == "SAFE",
+                    Text = request.Text,
+                    Model = request.Model,
+                    UsingFallback = promptGuard.IsUsingFallback,
+                    PredictionMethod = promptGuard.IsUsingFallback ? "keyword-fallback" : "ml-model"
+                };
+            }
+            catch (Exception ex)
             {
-                Label = result.Label,
-                Score = result.Score,
-                Scores = result.AllScores,
-                IsSafe = result.Label == "SAFE",
-                Text = request.Text
-            };
+                // Return error response for this specific item
+                return new PredictResponseWithMetadata
+                {
+                    Label = "ERROR",
+                    Score = 0,
+                    Scores = new Dictionary<string, float>(),
+                    IsSafe = false,
+                    Text = request.Text,
+                    Model = request.Model,
+                    UsingFallback = false,
+                    PredictionMethod = $"error: {ex.Message}"
+                };
+            }
         }).ToList();
 
         return Results.Ok(responses);
@@ -429,21 +481,21 @@ IResult BatchDetectPromptInjectionLogic(
     }
 }
 
-// Batch detection endpoint with model parameter
-app.MapPost("/api/models/{model}/detect/batch", (
-    string model,
-    [FromBody] List<DetectRequest> requests,
+// Batch prediction endpoint - Multiple predictions with model specified in each payload item
+app.MapPost("/api/predict/batch", (
+    [FromBody] List<PredictRequest> requests,
     [FromServices] ModelManager modelManager,
     [FromServices] PredictionLoggerService logger,
+    [FromServices] ModelRegistryService modelRegistry,
     HttpContext httpContext) =>
 {
-    return BatchDetectPromptInjectionLogic(requests, modelManager, logger, httpContext, model);
+    return BatchPredictLogic(requests, modelManager, logger, modelRegistry, httpContext);
 })
-.WithName("DetectPromptInjectionBatch")
-.WithTags("Detection")
+.WithName("PredictBatch")
+.WithTags("Prediction")
 .WithOpenApi()
-.WithSummary("Detect prompt injection in multiple texts")
-.WithDescription("Analyzes multiple texts using the specified model and determines if they contain prompt injection attacks. Each request requires 'text' field. Model is specified in route parameter.");
+.WithSummary("Batch prediction with mixed models")
+.WithDescription("Analyzes multiple texts in a single request. Each item requires both 'text' and 'model' fields. Different models can be used for different items in the same batch for maximum flexibility.");
 
 // Helper method for getting logs
 IResult GetLogsLogic(

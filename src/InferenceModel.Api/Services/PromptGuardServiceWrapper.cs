@@ -23,13 +23,13 @@ public class PromptGuardServiceWrapper : IDisposable
         set => _forceUseModel = value; 
     }
 
-    public PromptGuardServiceWrapper(string modelPath, string tokenizerPathOrServiceUrl, string modelId = "deberta-v3-base-prompt-injection-v2")
+    public PromptGuardServiceWrapper(string modelPath, string tokenizerPathOrServiceUrl, string modelId = "deberta-v3-base-prompt-injection-v2", string[]? labels = null)
     {
         _fallbackService = new FallbackDetectionService();
 
         try
         {
-            _mlService = new PromptGuardService(modelPath, tokenizerPathOrServiceUrl, modelId);
+            _mlService = new PromptGuardService(modelPath, tokenizerPathOrServiceUrl, modelId, labels);
             _isUsingFallback = false;
             _modelError = null;
         }
