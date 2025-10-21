@@ -1,4 +1,39 @@
+# docker-compose.dev.yml - SELF-CONTAINED BUILD
+#
+# BEST FOR: CI/CD, fresh deployments, or when you don't have models locally
+# - Downloads models during build (slower first build: 3-5 minutes)
+# - Models baked into image = portable
+# - Self-contained deployment
+#
+# USAGE: docker-compose -f docker-compose.dev.yml up --build
+#
+# See docs/DOCKER_COMPOSE_GUIDE.md for detailed comparison
+
 services:
+  # Python tokenizer service
+  tokenizer-service:
+    build:
+      context: ./tokenizer-service
+      dockerfile: Dockerfile
+      cache_from:
+        - tokenizer-service:latest
+    image: tokenizer-service:latest
+    container_name: tokenizer-service-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - promptguard-network
+
+  # Main API service
   promptguard-api:
     build:
       context: .
@@ -14,14 +49,21 @@ services:
       - ASPNETCORE_URLS=http://+:8080
       - Logging__MaxLogSize=1000
       - ModelsConfigPath=/app/config/models.json
-      - TokenizerServiceUrl=http://localhost:8000
+      - ModelConfiguration__TokenizerServiceUrl=http://tokenizer-service:8000
     # Models are baked into image, no volume mounts needed
     # For local development with live config changes, you can mount:
-    # volumes:
-    #   - ./models:/app/models:ro
-    #   - ./config:/app/config:ro
-    #   - ./src:/src:ro
+    volumes:
+      - ./config:/app/config:ro
     restart: unless-stopped
+    depends_on:
+      tokenizer-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     networks:
       - promptguard-network
 

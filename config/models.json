@@ -10,6 +10,7 @@
       "max_length": 512,
       "opset_version": 14,
       "required": true,
+      "labels": ["SAFE", "INJECTION"],
       "description": "DeBERTa v3 model fine-tuned for detecting prompt injection attacks"
     },
     {
@@ -22,6 +23,7 @@
       "max_length": 512,
       "opset_version": 14,
       "required": true,
+      "labels": ["SAFE", "VULNERABLE"],
       "description": "GraphCodeBERT model for detecting vulnerabilities in Solidity smart contracts"
     }
   ],

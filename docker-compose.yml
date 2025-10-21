@@ -1,3 +1,14 @@
+# docker-compose.yml - LOCAL DEVELOPMENT (Recommended)
+#
+# BEST FOR: Daily development with fast rebuilds (3-5 seconds!)
+# - Uses local models from ./models/ directory (volume mount)
+# - No model downloads = FAST builds
+# - Easy config updates (just restart, no rebuild)
+# 
+# USAGE: docker-compose up --build
+#
+# See docs/DOCKER_COMPOSE_GUIDE.md for detailed comparison
+
 services:
   # Python tokenizer service for accurate HuggingFace tokenization
   tokenizer-service:
@@ -36,7 +47,7 @@ services:
       - ASPNETCORE_URLS=http://+:8080
       - Logging__MaxLogSize=1000
       - ModelsConfigPath=/app/config/models.json
-      - TokenizerServiceUrl=http://tokenizer-service:8000
+      - ModelConfiguration__TokenizerServiceUrl=http://tokenizer-service:8000
     volumes:
       # Mount local models directory (already downloaded)
       - ./models:/app/models:ro

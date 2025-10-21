@@ -287,9 +287,9 @@ curl -X POST http://localhost:5158/api/detect \
 ### Production Deployment
 
 For production, see:
-- `DOCKER.md` - Docker deployment guide
-- `TOKENIZER_SERVICE_SETUP.md` - Tokenizer service details
-- `README.md` - Full documentation
+- [08-DOCKER_ADVANCED.md](08-DOCKER_ADVANCED.md) - Docker deployment guide
+- [09-TOKENIZER_SERVICE_SETUP.md](09-TOKENIZER_SERVICE_SETUP.md) - Tokenizer service details
+- [../README.md](../README.md) - Full documentation
 
 ### Performance Tuning
 
@@ -321,9 +321,9 @@ If you run into issues:
 2. Verify health: `curl http://localhost:5158/health`
 3. Test tokenizer: `curl http://localhost:8000/health`
 4. Review documentation:
-   - `TOKENIZER_SERVICE_SETUP.md` - Tokenizer details
-   - `DOCKER.md` - Docker specifics
-   - `README.md` - Full documentation
+   - [09-TOKENIZER_SERVICE_SETUP.md](09-TOKENIZER_SERVICE_SETUP.md) - Tokenizer details
+   - [08-DOCKER_ADVANCED.md](08-DOCKER_ADVANCED.md) - Docker specifics
+   - [README.md](README.md) - Documentation index
 
-**Happy detecting! 🛡️**
+**Happy predicting! 🛡️**
 
