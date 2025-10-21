@@ -35,7 +35,7 @@ __pycache__/
 venv/
 ENV/
 
-# Model files (large binary files - downloaded during build instead)
-**/models/*
+# Model files - Allow copying to use pre-existing models, download missing ones during build
+# **/models/*
 
 

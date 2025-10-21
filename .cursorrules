@@ -1,0 +1,12 @@
+{
+  "model": "auto",
+  "context": {
+    "include": [
+      "README.md",
+      "docs/**/*.md"
+    ],
+    "max_tokens": 20000
+  },
+  "rules": [
+  ]
+}

@@ -1,4 +1,13 @@
-version: '3.8'
+# docker-compose.yml - LOCAL DEVELOPMENT (Recommended)
+#
+# BEST FOR: Daily development with fast rebuilds (3-5 seconds!)
+# - Uses local models from ./models/ directory (volume mount)
+# - No model downloads = FAST builds
+# - Easy config updates (just restart, no rebuild)
+# 
+# USAGE: docker-compose up --build
+#
+# See docs/DOCKER_COMPOSE_GUIDE.md for detailed comparison
 
 services:
   # Python tokenizer service for accurate HuggingFace tokenization
@@ -6,9 +15,12 @@ services:
     build:
       context: ./tokenizer-service
       dockerfile: Dockerfile
-    container_name: deberta-tokenizer-service
+    container_name: tokenizer-service
     ports:
       - "8000:8000"
+    volumes:
+      # Mount config directory so tokenizer can read models.json
+      - ./config:/app/config:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
@@ -24,19 +36,23 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: deberta-promptguard
+      args:
+        # Use local models - no need to download during build (fast!)
+        - DOWNLOAD_MODELS=false
+    container_name: inference-service
     ports:
       - "5158:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - Logging__MaxLogSize=1000
-      - ModelConfiguration__ModelPath=/app/models/model.onnx
-      - ModelConfiguration__TokenizerPath=/app/models/tokenizer.json
+      - ModelsConfigPath=/app/config/models.json
       - ModelConfiguration__TokenizerServiceUrl=http://tokenizer-service:8000
     volumes:
-      # Mount models directory from host (if models are too large for image)
+      # Mount local models directory (already downloaded)
       - ./models:/app/models:ro
+      # Mount config for easy updates
+      - ./config:/app/config:ro
     restart: unless-stopped
     depends_on:
       tokenizer-service:
