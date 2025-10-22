@@ -45,6 +45,8 @@ models/
 **/models/
 **/models/*
 **/models/**/*
+!models/
+!models/.gitkeep
 *.onnx
 *.spm
 
@@ -80,5 +82,3 @@ wheels/
 # OS files
 .DS_Store
 Thumbs.db
-
-
