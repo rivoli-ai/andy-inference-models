@@ -32,7 +32,7 @@ services:
       - promptguard-network
 
   # Main API service
-  promptguard-api:
+  inference-service:
     build:
       context: .
       dockerfile: Dockerfile
@@ -69,5 +69,3 @@ services:
 networks:
   promptguard-network:
     driver: bridge
-
-
