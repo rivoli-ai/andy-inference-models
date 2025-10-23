@@ -5,108 +5,13 @@ This script can convert any HuggingFace model to ONNX format.
 Model configuration is read from models.json or passed as command-line arguments.
 """
 
+import os
 import sys
 import json
 import argparse
-import importlib
-import subprocess
-import shlex
 from pathlib import Path
-
-
-DEFAULT_PYTHON_REQUIREMENTS = [
-    "torch --index-url https://download.pytorch.org/whl/cpu",
-    "transformers",
-    "optimum[onnxruntime]",
-    "onnx",
-    "onnxscript"
-]
-
-_dependencies_ready = False
-AutoTokenizer = None
-AutoModelForSequenceClassification = None
-torch = None
-
-
-def load_python_requirements():
-    """Read python_requirements from config/models.json if available."""
-    script_dir = Path(__file__).parent
-    project_root = script_dir.parent
-    candidate_paths = [
-        project_root / "config" / "models.json",
-        script_dir / "models.json"
-    ]
-
-    for path in candidate_paths:
-        if not path.exists():
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as config_file:
-                config = json.load(config_file)
-            requirements = config.get("config", {}).get("python_requirements")
-            if requirements:
-                return requirements
-        except Exception as exc:
-            print(f"[WARN] Unable to read python requirements from {path}: {exc}")
-
-    return DEFAULT_PYTHON_REQUIREMENTS
-
-
-def install_required_packages():
-    """Install Python packages required for model conversion."""
-    requirements = load_python_requirements()
-    for requirement in requirements:
-        args = shlex.split(str(requirement))
-        if not args:
-            continue
-
-        cmd = [sys.executable, "-m", "pip", "install"] + args
-        print(f"[INFO] Installing dependency: {' '.join(cmd)}")
-
-        try:
-            subprocess.check_call(cmd)
-        except subprocess.CalledProcessError as exc:
-            raise RuntimeError(f"Failed to install Python package: {' '.join(args)}") from exc
-
-
-def ensure_dependencies():
-    """Ensure transformers and torch modules are available before conversion."""
-    global AutoTokenizer, AutoModelForSequenceClassification, torch, _dependencies_ready
-
-    if _dependencies_ready:
-        return
-
-    missing = []
-    try:
-        transformers_module = importlib.import_module("transformers")
-    except ModuleNotFoundError:
-        transformers_module = None
-        missing.append("transformers")
-
-    try:
-        torch_module = importlib.import_module("torch")
-    except ModuleNotFoundError:
-        torch_module = None
-        missing.append("torch")
-
-    if missing:
-        print(f"[INFO] Missing Python dependencies: {', '.join(missing)}")
-        install_required_packages()
-
-        try:
-            transformers_module = importlib.import_module("transformers")
-        except ModuleNotFoundError as exc:
-            raise RuntimeError("Unable to import 'transformers' after installation attempt.") from exc
-
-        try:
-            torch_module = importlib.import_module("torch")
-        except ModuleNotFoundError as exc:
-            raise RuntimeError("Unable to import 'torch' after installation attempt.") from exc
-
-    AutoTokenizer = transformers_module.AutoTokenizer
-    AutoModelForSequenceClassification = transformers_module.AutoModelForSequenceClassification
-    torch = torch_module
-    _dependencies_ready = True
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
 
 
 def convert_model_to_onnx(
@@ -128,8 +33,6 @@ def convert_model_to_onnx(
         max_length: Maximum sequence length for the model
         opset_version: ONNX opset version
     """
-    ensure_dependencies()
-
     output_path = Path(output_dir)
     display_name = model_name or model_id
     
@@ -382,3 +285,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
