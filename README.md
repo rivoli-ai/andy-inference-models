@@ -68,6 +68,7 @@ docker-compose up --build -d
 10. **[Model Conversion](docs/11-MODEL_CONVERSION.md)** - Converting models to ONNX
 11. **[Architecture](docs/12-PROJECT_ARCHITECTURE.md)** - System architecture
 12. **[Tokenizer Notes](docs/13-TOKENIZER_TECHNICAL_NOTES.md)** - Technical details
+13. **[GHCR Publishing & Testcontainers](docs/14-GHCR_PUBLISHING.md)** - Release & integration guide
 
 ## API Endpoints
 
@@ -171,4 +172,3 @@ This project uses AI models from HuggingFace which have their own licenses. Plea
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
