@@ -1,15 +1,16 @@
-# docker-compose.yml - LOCAL DEVELOPMENT (Recommended)
-#
-# BEST FOR: Daily development with fast rebuilds (3-5 seconds!)
-# - Uses local models from ./models/ directory (volume mount)
-# - No model downloads = FAST builds
-# - Easy config updates (just restart, no rebuild)
-# 
 # USAGE: docker-compose up --build
 #
 # See docs/DOCKER_COMPOSE_GUIDE.md for detailed comparison
 
 services:
+  # Model data container (acts as a volume source)
+  model-assets:
+    image: ghcr.io/rivoli-ai/andy-model-assets:v1
+    container_name: model-assets
+    # no need to run any command — it just holds the /models folder
+    command: [ "true" ]
+    restart: "no"
+  
   # Python tokenizer service for accurate HuggingFace tokenization
   tokenizer-service:
     build:
@@ -36,9 +37,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        # Use local models - no need to download during build (fast!)
-        - DOWNLOAD_MODELS=false
     container_name: inference-service
     ports:
       - "5158:8080"
@@ -49,14 +47,16 @@ services:
       - ModelsConfigPath=/app/config/models.json
       - ModelConfiguration__TokenizerServiceUrl=http://tokenizer-service:8000
     volumes:
-      # Mount local models directory (already downloaded)
-      - ./models:/app/models:ro
       # Mount config for easy updates
       - ./config:/app/config:ro
     restart: unless-stopped
     depends_on:
       tokenizer-service:
         condition: service_healthy
+      model-assets:
+        condition: service_started
+    volumes_from:
+      - model-assets
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
