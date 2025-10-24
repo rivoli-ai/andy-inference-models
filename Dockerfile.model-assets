@@ -1,0 +1,9 @@
+FROM busybox
+
+LABEL org.opencontainers.image.source=https://github.com/rivoli-ai/andy-inference-models
+
+LABEL org.opencontainers.image.description="Container image with model assets for Andy Inference."
+
+COPY models/ /models/
+
+CMD ["true"]
