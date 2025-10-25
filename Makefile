@@ -1,13 +1,14 @@
 # To push version v2 of all images: MODEL_VERSION=v2 make push-all
-MODEL_VERSION := v1
-REGISTRY := ghcr.io/rivoli-ai
-PLATFORMS := linux/amd64,linux/arm64
+MODEL_VERSION ?= v1
+REGISTRY ?= ghcr.io/rivoli-ai
+PLATFORMS ?= linux/amd64,linux/arm64
 
 .PHONY: setup-buildx push-model-assets push-inference-service push-tokenizer-service push-all
 
 # Setup multi-platform builder
 setup-buildx:
-	docker buildx create --name multiplatform --use || docker buildx use multiplatform
+	docker buildx inspect multiplatform >/dev/null 2>&1 || docker buildx create --name multiplatform --use
+	docker buildx use multiplatform
 	docker buildx inspect --bootstrap
 
 push-model-assets: TAGS ?= $(REGISTRY)/andy-model-assets:$(MODEL_VERSION) $(REGISTRY)/andy-model-assets:latest
