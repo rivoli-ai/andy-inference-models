@@ -27,14 +27,12 @@ jobs:
         include:
           - id: inference
             display_name: inference service
-            context: .
-            dockerfile: Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/andy-inference-service
+            make_target: push-inference-service
           - id: tokenizer
             display_name: tokenizer service
-            context: tokenizer-service
-            dockerfile: tokenizer-service/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/andy-tokenizer-service
+            make_target: push-tokenizer-service
 
     steps:
       - name: Checkout repository
@@ -69,60 +67,13 @@ jobs:
           flavor: |
             latest=true
 
-      - name: Build and push image
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          push: ${{ github.event_name != 'pull_request' }}
-          platforms: linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Ensure package is public
+      - name: Build and push via Makefile
         if: github.event_name != 'pull_request'
-        uses: actions/github-script@v7
         env:
-          IMAGE_NAME: ${{ matrix.image }}
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const image = process.env.IMAGE_NAME.toLowerCase();
-            const packageName = image.replace(/^ghcr\.io\//, '').split('/').pop();
-            const owner = context.repo.owner;
-            const ownerType = (context.payload.repository && context.payload.repository.owner && context.payload.repository.owner.type) || 'User';
-
-            async function setVisibility(route, params) {
-              try {
-                await github.request(route, params);
-                console.log(`Set ${packageName} visibility to public using ${route}`);
-                return true;
-              } catch (error) {
-                if (error.status === 404) {
-                  console.warn(`Package ${packageName} not found via ${route} (status 404). It may take time for the package to appear; visibility might need to be set manually after the first push.`);
-                  return false;
-                }
-                if (error.status === 403) {
-                  console.warn(`Missing permissions to set ${packageName} public via ${route}; please ensure the package visibility is set to public manually.`);
-                  return false;
-                }
-                throw error;
-              }
-            }
-
-            if (ownerType === 'Organization') {
-              await setVisibility('PATCH /orgs/{org}/packages/container/{package_name}/visibility', {
-                org: owner,
-                package_name: packageName,
-                visibility: 'public',
-                headers: { 'X-GitHub-Api-Version': '2022-11-28' }
-              });
-            } else {
-              await setVisibility('PATCH /user/packages/container/{package_name}/visibility', {
-                package_name: packageName,
-                visibility: 'public',
-                headers: { 'X-GitHub-Api-Version': '2022-11-28' }
-              });
-            }
+          REGISTRY: ghcr.io/${{ github.repository_owner }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+          LABELS: ${{ steps.meta.outputs.labels }}
+        run: |
+          TAG_LIST="$(printf '%s' "$TAGS" | tr '\n' ' ')"
+          LABEL_LIST="$(printf '%s' "$LABELS" | tr '\n' ' ')"
+          make ${{ matrix.make_target }} REGISTRY="$REGISTRY" TAGS="$TAG_LIST" LABELS="$LABEL_LIST"

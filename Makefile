@@ -1,63 +1,47 @@
-MODEL_VERSION := v1
-REGISTRY := ghcr.io/rivoli-ai
-PLATFORMS := linux/amd64,linux/arm64,windows/amd64
+# To push version v2 of all images: MODEL_VERSION=v2 make push-all
+MODEL_VERSION ?= v1
+REGISTRY ?= ghcr.io/rivoli-ai
+PLATFORMS ?= linux/amd64,linux/arm64
 
-.PHONY: build-models push-models build-multiplatform push-multiplatform setup-buildx all
+.PHONY: setup-buildx push-model-assets push-inference-service push-tokenizer-service push-all
 
 # Setup multi-platform builder
 setup-buildx:
-	docker buildx create --name multiplatform --use || docker buildx use multiplatform
+	docker buildx inspect multiplatform >/dev/null 2>&1 || docker buildx create --name multiplatform --use
+	docker buildx use multiplatform
 	docker buildx inspect --bootstrap
 
-# Build single platform (current behavior)
-build-models:
-	docker build -t $(REGISTRY)/andy-model-assets:$(MODEL_VERSION) -f Dockerfile.model-assets .
+push-model-assets: TAGS ?= $(REGISTRY)/andy-model-assets:$(MODEL_VERSION) $(REGISTRY)/andy-model-assets:latest
+push-model-assets: DOCKERFILE := Dockerfile.model-assets
+push-model-assets: CONTEXT := .
+push-model-assets: LABELS ?=
+push-model-assets: LABEL_ARGS := $(if $(LABELS),$(addprefix --label ,$(LABELS)))
+push-model-assets: setup-buildx
+	docker buildx build --platform $(PLATFORMS) $(LABEL_ARGS) \
+		$(addprefix -t ,$(TAGS)) \
+		-f $(DOCKERFILE) \
+		--push $(CONTEXT)
 
-# Build multi-platform images
-build-multiplatform:
-	docker buildx build --platform $(PLATFORMS) \
-		-t $(REGISTRY)/andy-model-assets:$(MODEL_VERSION) \
-		-t $(REGISTRY)/andy-model-assets:latest \
-		-f Dockerfile.model-assets \
-		--load .
+push-inference-service: TAGS ?= $(REGISTRY)/andy-inference-service:$(MODEL_VERSION) $(REGISTRY)/andy-inference-service:latest
+push-inference-service: DOCKERFILE := Dockerfile
+push-inference-service: CONTEXT := .
+push-inference-service: LABELS ?=
+push-inference-service: LABEL_ARGS := $(if $(LABELS),$(addprefix --label ,$(LABELS)))
+push-inference-service: setup-buildx
+	docker buildx build --platform $(PLATFORMS) $(LABEL_ARGS) \
+		$(addprefix -t ,$(TAGS)) \
+		-f $(DOCKERFILE) \
+		--push $(CONTEXT)
 
-# Build and push multi-platform images
-push-multiplatform:
-	docker buildx build --platform $(PLATFORMS) \
-		-t $(REGISTRY)/andy-model-assets:$(MODEL_VERSION) \
-		-t $(REGISTRY)/andy-model-assets:latest \
-		-f Dockerfile.model-assets \
-		--push .
+push-tokenizer-service: TAGS ?= $(REGISTRY)/andy-tokenizer-service:$(MODEL_VERSION) $(REGISTRY)/andy-tokenizer-service:latest
+push-tokenizer-service: DOCKERFILE := tokenizer-service/Dockerfile
+push-tokenizer-service: CONTEXT := tokenizer-service
+push-tokenizer-service: LABELS ?=
+push-tokenizer-service: LABEL_ARGS := $(if $(LABELS),$(addprefix --label ,$(LABELS)))
+push-tokenizer-service: setup-buildx
+	docker buildx build --platform $(PLATFORMS) $(LABEL_ARGS) \
+		$(addprefix -t ,$(TAGS)) \
+		-f $(DOCKERFILE) \
+		--push $(CONTEXT)
 
-# Push single platform (current behavior)
-push-models:
-	docker push $(REGISTRY)/andy-model-assets:$(MODEL_VERSION)
-
-# Build all services multi-platform
-build-all-multiplatform:
-	docker buildx build --platform $(PLATFORMS) \
-		-t $(REGISTRY)/andy-inference-service:$(MODEL_VERSION) \
-		-t $(REGISTRY)/andy-inference-service:latest \
-		-f Dockerfile \
-		--load .
-	docker buildx build --platform $(PLATFORMS) \
-		-t $(REGISTRY)/andy-tokenizer-service:$(MODEL_VERSION) \
-		-t $(REGISTRY)/andy-tokenizer-service:latest \
-		-f tokenizer-service/Dockerfile \
-		--load .
-
-# Push all services multi-platform
-push-all-multiplatform:
-	docker buildx build --platform $(PLATFORMS) \
-		-t $(REGISTRY)/andy-inference-service:$(MODEL_VERSION) \
-		-t $(REGISTRY)/andy-inference-service:latest \
-		-f Dockerfile \
-		--push .
-	docker buildx build --platform $(PLATFORMS) \
-		-t $(REGISTRY)/andy-tokenizer-service:$(MODEL_VERSION) \
-		-t $(REGISTRY)/andy-tokenizer-service:latest \
-		-f tokenizer-service/Dockerfile \
-		--push .
-
-all: build-models push-models
-all-multiplatform: build-all-multiplatform push-all-multiplatform
+push-all: push-model-assets push-inference-service push-tokenizer-service
