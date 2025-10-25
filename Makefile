@@ -1,7 +1,7 @@
 # To push version v2 of all images: MODEL_VERSION=v2 make push-all
 MODEL_VERSION := v1
 REGISTRY := ghcr.io/rivoli-ai
-PLATFORMS := linux/amd64,linux/arm64,windows/amd64
+PLATFORMS := linux/amd64,linux/arm64
 
 .PHONY: setup-buildx push-model-assets push-inference-service push-tokenizer-service push-all
 
