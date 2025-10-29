@@ -5,7 +5,7 @@
 services:
   # Model data container (acts as a volume source)
   model-assets:
-    image: ghcr.io/rivoli-ai/andy-model-assets:latest
+    image: ghcr.io/rivoli-ai/andy-model-assets:v1
     command: ["true"]
     volumes:
       - model_data:/models
